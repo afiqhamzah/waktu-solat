@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/2.3.0/alpine-ie11.js" defer></script>
+</head>
+<body>
+    <div
+        x-data="{
+            url_api_solat: 'https://api.waktusolat.app',
+            zones: [],
+            states: [],
+            districts: [],
+            selected_state: '',
+            selected_district: '',
+            current_month_prayer_times: [],
+            current_day_prayer_times: [],
+
+
+            get_zones: function(){
+                return fetch(this.url_api_solat + '/zones').then(x => x.json());
+            },
+
+            get_prayer_times: function(){
+                return fetch(this.url_api_solat + '/v2/solat/' + this.selected_district).then(x => x.json());
+            },
+
+            get_unique_state: function(){
+                const uniqueStates = [...new Set( this.zones.map(zone => zone.negeri)) ];
+                this.states = uniqueStates
+            },
+
+            populate_state_districts: function(){
+                this.districts = this.zones.filter(x => x.negeri === this.selected_state)
+
+                // populate prayer times base on the first district
+                this.selected_district = this.districts[0].jakimCode;
+                this.populate_prayer_times();
+            },
+
+            populate_prayer_times: async function(){
+                const today = (new Date()).getDate();
+                this.current_month_prayer_times = await this.get_prayer_times();
+
+                prayer_times = this.current_month_prayer_times.prayers[today - 1];
+
+                const {fajr, dhuhr, asr, maghrib, isha} = prayer_times
+
+                function epochToHumanReadableTime(epochSeconds) {
+                    const date = new Date(epochSeconds * 1000);
+
+                    let hours = date.getHours();
+                    const minutes = date.getMinutes();
+                    const seconds = date.getSeconds();
+
+                    const ampm = hours >= 12 ? 'PM' : 'AM';
+
+                    hours = hours % 12;
+                    hours = hours ? hours : 12; // the hour '0' should be '12'
+
+                    const strMinutes = minutes < 10 ? '0' + minutes : minutes;
+                    const strSeconds = seconds < 10 ? '0' + seconds : seconds;
+
+                    return hours + ':' + strMinutes + ':' + strSeconds + ' ' + ampm;
+                }
+
+
+
+                const formatted_prayer_times = [fajr, dhuhr, asr, maghrib, isha].map(x => epochToHumanReadableTime(x));
+                const prayer_names = ['Subuh', 'Zohor', 'Asar', 'Marghrib', 'Isyak'];
+
+                this.current_day_prayer_times = prayer_names.map((value, index) => {
+                    return {
+                        prayer_name: value,
+                        prayer_time: formatted_prayer_times[index],
+                    };
+                })
+
+            },
+
+
+            init: async function(){
+                this.zones = await this.get_zones();
+                this.get_unique_state();
+                this.selected_state = 'Kelantan'
+                this.populate_state_districts();
+            }
+
+        }"
+        x-init="init()"
+    >
+        <select x-model="selected_state" x-on:change="populate_state_districts()">
+            <option value="" selected>No State Selected</option>
+            <template x-for="state in states">
+                <option :value="state" x-text="state">
+            </template>
+        </select>
+
+
+        <select x-model='selected_district' x-show="selected_state !== ''" x-on:change="populate_prayer_times()" >
+            <template x-for="district in districts">
+                <option :value="district.jakimCode" x-text="district.daerah">
+            </template>
+        </select>
+
+        <template x-for="item in current_day_prayer_times">
+            <div>
+                <span x-text="`${item.prayer_name} | ${item.prayer_time}`"></span>
+            </div>
+        </template>
+
+
+    </div>
+
+
+</body>
+</html>
